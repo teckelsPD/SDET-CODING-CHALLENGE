@@ -1,0 +1,3 @@
+pytest==7.2.2
+pytest-watch==4.2.0
+requests==2.26.0  # Add any other dependencies needed for your tests

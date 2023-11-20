@@ -1,0 +1,99 @@
+version: '3'
+
+services:
+  # PostgreSQL Service
+  postgres:
+    image: postgres:latest
+    container_name: my-postgres
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: books
+    ports:
+      - "5432:5432"
+    volumes:
+      # - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    command: ["postgres", "-c", "max_connections=200"]
+
+  # RABBITMQ Service
+  rabbitmq:
+    image: "rabbitmq:3-management"
+    ports:
+      - "5672:5672"  # RabbitMQ port
+      - "15672:15672"  # RabbitMQ Management UI
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  books-service:
+    build:
+      context: ./books
+    depends_on:
+      - postgres
+      - rabbitmq
+    environment:
+      POSTGRES_URI: "postgres://admin:admin@postgres:5432/books?sslmode=disable"
+      RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672/"
+      RABBITMQ_EXCHANGE: "likes"
+      RABBITMQ_QUEUE: "likes_queue"
+    ports:
+      - "8082:8082"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  likes-service:
+    build:
+      context: ./likes
+    depends_on:
+      - rabbitmq
+    environment:
+      RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672/"
+      RABBITMQ_EXCHANGE: "likes"
+      RABBITMQ_QUEUE: "likes_queue"
+    ports:
+      - "8083:8083"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  profile-service:
+    build:
+      context: ./profile
+    depends_on:
+      - rabbitmq
+    ports:
+      - "8081:8081"
+
+  api-gateway:
+    build:
+      context: ./api-gateway
+    ports:
+      - "8080:8080"
+    depends_on:
+      - rabbitmq
+      - books-service
+      - profile-service
+      - likes-service
+
+  # Service running pytest to test the REST API
+  pytest:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    depends_on:
+      - rabbitmq
+      - api-gateway
+    volumes:
+      - .:/app
+    command: ["ptw", "tests"]
+
+volumes:
+  postgres_data:

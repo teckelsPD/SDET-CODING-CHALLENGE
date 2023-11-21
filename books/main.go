@@ -7,7 +7,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"os/signal"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -161,108 +160,6 @@ func GetBookDetailsHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(book)
 }
 
-func publishMessage(ch *amqp.Channel, exchange, routingKey, body string) {
-	err := ch.Publish(
-		exchange,   // exchange
-		routingKey, // routing key
-		false,      // mandatory
-		false,      // immediate
-		amqp.Publishing{
-			ContentType: "text/plain",
-			Body:        []byte(body),
-		})
-	if err != nil {
-		log.Fatalf("Failed to publish a message: %v", err)
-	}
-	fmt.Printf(" [x] Sent: %s\n", body)
-}
-
-func PostBookLikesHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-
-	// Get the book ID from the request parameters
-	params := mux.Vars(r)
-	bookID := params["id"]
-
-	publishMessage(channel, exchange, "", bookID)
-
-	successMessage := map[string]string{
-		"success": bookID,
-	}
-
-	json.NewEncoder(w).Encode(successMessage)
-}
-
-func healthCheckHandler(w http.ResponseWriter, r *http.Request) {
-	if err := waitForRabbitMQ(); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprintf(w, "RabbitMQ is not reachable: %v", err)
-		return
-	}
-
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprint(w, "OK")
-}
-
-func waitForRabbitMQ() error {
-	for retry := 0; retry < maxRetries; retry++ {
-		log.Printf("Trying to connect to RabbitMQ (Attempt %d)...", retry+1)
-
-		if isRabbitMQReady() {
-			log.Println("RabbitMQ is ready!")
-			return nil
-		}
-
-		log.Printf("RabbitMQ not ready, retrying in %v...", retryDelay)
-		time.Sleep(retryDelay)
-	}
-
-	return fmt.Errorf("exhausted all retry attempts to connect to RabbitMQ")
-}
-
-func isRabbitMQReady() bool {
-	conn, err := amqp.Dial(rabbitMQURL)
-	if err != nil {
-		log.Println("Error connecting to RabbitMQ:", err)
-		return false
-	}
-	//defer conn.Close()
-
-	// ch, err := conn.Channel()
-	// if err != nil {
-	// 	log.Println("Error creating channel:", err)
-	// 	return false
-	// }
-	// defer ch.Close()
-
-	// You can add more specific checks based on your requirements.
-	// For example, checking if a specific queue or exchange exists.
-
-	channel, err = conn.Channel()
-	if err != nil {
-		log.Fatalf("Failed to open a channel: %v", err)
-	}
-	//defer channel.Close()
-
-	err = channel.ExchangeDeclare(
-		exchange, // name
-		"fanout", // type
-		true,     // durable
-		false,    // auto-deleted
-		false,    // internal
-		false,    // no-wait
-		nil,      // arguments
-	)
-	if err != nil {
-		log.Fatalf("Failed to declare an exchange: %v", err)
-	}
-
-	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, os.Interrupt)
-
-	return true
-}
-
 func main() {
 	// API - Create a new router
 	router := mux.NewRouter()
@@ -270,8 +167,6 @@ func main() {
 	// Define API routes
 	router.HandleFunc("/books", GetBooksHandler).Methods("GET")
 	router.HandleFunc("/books/{id}", GetBookDetailsHandler).Methods("GET")
-	router.HandleFunc("/books/{id}/likes", PostBookLikesHandler).Methods("POST")
-	router.HandleFunc("/health", healthCheckHandler).Methods("GET")
 
 	// Start the server
 	http.Handle("/", router)

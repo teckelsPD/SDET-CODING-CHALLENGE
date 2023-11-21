@@ -29,15 +29,3 @@ INSERT INTO users ("username", "password") VALUES
     ('test', 'test');
 
 SELECT * FROM users WHERE "username" = 'test';
-
-SELECT 'CREATE TABLE usersbooks (
-        id serial PRIMARY KEY,
-        userid smallint NOT NULL,
-        bookid smallint NOT NULL
-    )'
-WHERE NOT EXISTS (SELECT * FROM pg_catalog.pg_tables WHERE tablename = 'usersbooks')\gexec    
-
-INSERT INTO usersbooks ("userid", "bookid") VALUES
-    (1, 1);
-
-SELECT * FROM usersbooks;

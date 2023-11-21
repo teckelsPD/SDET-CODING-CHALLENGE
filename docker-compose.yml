@@ -15,6 +15,11 @@ services:
       # - postgres_data:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     command: ["postgres", "-c", "max_connections=200"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   books-service:
     build:
@@ -29,6 +34,8 @@ services:
   profile-service:
     build:
       context: ./profile
+    depends_on:
+      - postgres
     ports:
       - "8081:8081"
 
@@ -38,6 +45,7 @@ services:
     ports:
       - "8080:8080"
     depends_on:
+      - postgres
       - books-service
       - profile-service
       
@@ -47,10 +55,12 @@ services:
       context: .
       dockerfile: Dockerfile.test
     depends_on:
+      - postgres
       - api-gateway
     volumes:
       - .:/app
-    command: ["ptw", "tests"]
+    command: bash -c 'while !</dev/tcp/postgres/5432; do sleep 1; done; ptw tests'
+    # command: ["ptw", "tests"]
 
 volumes:
   postgres_data:

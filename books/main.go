@@ -6,12 +6,9 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
-	"time"
 
 	"github.com/gorilla/mux"
 	_ "github.com/lib/pq"
-	"github.com/streadway/amqp"
 )
 
 // Book represents a book entity
@@ -23,42 +20,11 @@ type Book struct {
 
 var books []Book
 
-var channel *amqp.Channel
-var rabbitMQURL = os.Getenv("RABBITMQ_URL")
-var exchange = os.Getenv("RABBITMQ_EXCHANGE")
-var maxRetries = 10
-var retryDelay = time.Second
-
-func init() {
-	// Populate some dummy data
-	books = append(books, Book{ID: "1", Title: "Book 1", Author: "Author 1"})
-	books = append(books, Book{ID: "2", Title: "Book 2", Author: "Author 2"})
-
-	connStr := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", "postgres", 5432, "admin", "admin", "books")
-	db, err := sql.Open("postgres", connStr)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer db.Close()
-
-	// Open a connection to the database
-	err = db.Ping()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// Insert a new record into the user table
-	newBook := Book{Title: "Book 1", Author: "Author 1"}
-	//insertQuery := "INSERT INTO books(title, author) VALUES($1, $2) RETURNING id"
-
-	// Execute the SQL query and get the ID of the inserted record
-	// err = db.QueryRow(insertQuery, newBook.Title, newBook.Author).Scan(&newBook.ID)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-
-	fmt.Printf("Inserted record with ID %s\n", newBook.ID)
-}
+// var channel *amqp.Channel
+// var rabbitMQURL = os.Getenv("RABBITMQ_URL")
+// var exchange = os.Getenv("RABBITMQ_EXCHANGE")
+// var maxRetries = 10
+// var retryDelay = time.Second
 
 // GetBooksHandler returns a list of books
 func GetBooksHandler(w http.ResponseWriter, r *http.Request) {
